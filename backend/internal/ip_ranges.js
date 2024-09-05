@@ -6,8 +6,7 @@ const utils         = require('../lib/utils');
 const internalNginx = require('./nginx');
 
 const CLOUDFRONT_URL   = 'https://ip-ranges.amazonaws.com/ip-ranges.json';
-const CLOUDFARE_V4_URL = 'https://www.cloudflare.com/ips-v4';
-const CLOUDFARE_V6_URL = 'https://www.cloudflare.com/ips-v6';
+const CLOUDFARE_URL    = 'https://api.cloudflare.com/client/v4/ips';
 
 const regIpV4 = /^(\d+\.?){4}\/\d+/;
 const regIpV6 = /^(([\da-fA-F]+)?:)+\/\d+/;
@@ -58,34 +57,26 @@ const internalIpRanges = {
 					let data = JSON.parse(cloudfront_data);
 
 					if (data && typeof data.prefixes !== 'undefined') {
-						data.prefixes.map((item) => {
-							if (item.service === 'CLOUDFRONT') {
-								ip_ranges.push(item.ip_prefix);
-							}
-						});
+						ip_ranges = ip_ranges.filter(t => !data.prefixes.includes(t)).concat(data.prefixes.filter(p => p.service === 'CLOUDFRONT'))
 					}
 
 					if (data && typeof data.ipv6_prefixes !== 'undefined') {
-						data.ipv6_prefixes.map((item) => {
-							if (item.service === 'CLOUDFRONT') {
-								ip_ranges.push(item.ipv6_prefix);
-							}
-						});
+						ip_ranges = ip_ranges.filter(t => !data.ipv6_prefixes.includes(t)).concat(data.ipv6_prefixes.filter(p => p.service === 'CLOUDFRONT'))
 					}
 				})
 				.then(() => {
-					return internalIpRanges.fetchUrl(CLOUDFARE_V4_URL);
+					return internalIpRanges.fetchUrl(CLOUDFARE_URL);
 				})
 				.then((cloudfare_data) => {
-					let items = cloudfare_data.split('\n').filter((line) => regIpV4.test(line));
-					ip_ranges = [... ip_ranges, ... items];
-				})
-				.then(() => {
-					return internalIpRanges.fetchUrl(CLOUDFARE_V6_URL);
-				})
-				.then((cloudfare_data) => {
-					let items = cloudfare_data.split('\n').filter((line) => regIpV6.test(line));
-					ip_ranges = [... ip_ranges, ... items];
+					let data = JSON.parse(cloudfare_data);
+
+					if (data && typeof data.ipv4_cidrs !== 'undefined') {
+						ip_ranges = ip_ranges.filter(t => !data.ipv4_cidrs.includes(t)).concat(data.ipv4_cidrs)
+					}
+
+					if (data && typeof data.ipv6_cidrs !== 'undefined') {
+						ip_ranges = ip_ranges.filter(t => !data.ipv6_cidrs.includes(t)).concat(data.ipv6_cidrs)
+					}
 				})
 				.then(() => {
 					let clean_ip_ranges = [];
